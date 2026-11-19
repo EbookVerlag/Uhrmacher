@@ -112,4 +112,4 @@ body.term .btn{background:var(--brass);color:#16110a}
 body.term .btn:hover{background:var(--brass2)}
 body.term label{color:#cdbb98}
 body.term .muted{color:#a89a80}
-@media(max-width:600px){nav{gap:.8rem}body{font-size:19px}}
+@media(max-width:600px){nav{gap:.75rem}nav a{font-size:.74rem;letter-spacing:.03em}body{font-size:19px}}
