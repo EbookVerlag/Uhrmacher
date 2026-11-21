@@ -27,6 +27,14 @@ async function dec(key, e){
 function unobf(s){ const b = b64d(s); for(let i=0;i<b.length;i++) b[i] ^= (i*7+23)%256; return new TextDecoder().decode(b); }
 function esc(s){ return String(s).replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c])); }
 function h(html){ app.innerHTML = html; window.scrollTo(0,0); }
+/* ---------- Geräusche ---------- */
+const SFX = {};
+['schloss','buch','gong','falsch','piep'].forEach(n => { try{ SFX[n] = new Audio('a/s_'+n+'.mp3'); SFX[n].preload = 'auto'; }catch(e){} });
+function primeSfx(){ // iOS: Töne beim Tippen freischalten
+  Object.values(SFX).forEach(a => { try{ a.muted = true; const p = a.play(); if(p) p.then(() => { a.pause(); a.currentTime = 0; a.muted = false; }).catch(() => { a.muted = false; }); }catch(e){} });
+}
+function sfx(n){ const a = SFX[n]; if(!a) return; try{ a.muted = false; a.currentTime = 0; a.play().catch(()=>{}); }catch(e){} }
+const STEP_SFX = {1:'schloss', 2:'buch', 3:'piep'};
 function shake(el){ el.classList.remove('shake'); void el.offsetWidth; el.classList.add('shake'); }
 
 /* ---------- Router ---------- */
@@ -106,11 +114,11 @@ function kunden(){
   f.onsubmit = async ev => {
     ev.preventDefault();
     const nr = document.getElementById('nr').value, nm = document.getElementById('nm').value.trim().split(/\s+/).pop();
-    const m = document.getElementById('km'); m.className = 'msg'; m.textContent = 'Einen Moment …';
+    const m = document.getElementById('km'); m.className = 'msg'; m.textContent = 'Einen Moment …'; primeSfx();
     const e = D.kunden[norm(nr)];
     const o = e ? await dec(nr + '|' + nm, e) : null;
-    if(!o){ m.className = 'msg bad'; m.textContent = 'Zu diesen Angaben wurde kein Auftrag gefunden. Bitte prüfen Sie Auftragsnummer und Namen.'; shake(f); return; }
-    m.textContent = '';
+    if(!o){ sfx('falsch'); m.className = 'msg bad'; m.textContent = 'Zu diesen Angaben wurde kein Auftrag gefunden. Bitte prüfen Sie Auftragsnummer und Namen.'; shake(f); return; }
+    m.textContent = ''; sfx('buch');
     document.getElementById('ko').innerHTML = `<h2>Auftrag ${esc(o.nr)}</h2><div class="order">
       <dl><dt>Kunde</dt><dd>${esc(o.name)}</dd><dt>Gegenstand</dt><dd>${esc(o.obj)}</dd><dt>Eingang</dt><dd>${esc(o.eing)}</dd>
       <dt>Leistung</dt><dd>${esc(o.leistung)}</dd><dt>Status</dt><dd>${esc(o.status)}</dd><dt>Werkstattnotiz</dt><dd>${o.notiz}</dd></dl>
@@ -147,12 +155,12 @@ async function ab(){
   f.onsubmit = async ev => {
     ev.preventDefault();
     const pin = document.getElementById('pin').value;
-    const m = document.getElementById('pm'); m.className = 'msg'; m.textContent = 'Verbinde …';
-    if(await show(pin)){
+    const m = document.getElementById('pm'); m.className = 'msg'; m.textContent = 'Verbinde …'; primeSfx();
+    if(await show(pin)){ sfx('piep');
       mem.pin = pin;
       if(mem.access && !mem.codes[3] && mem.codes[2]) mem.codes[3] = pin;
       save();
-    } else { m.className = 'msg bad'; m.textContent = 'Falsche PIN.'; shake(f); }
+    } else { sfx('falsch'); m.className = 'msg bad'; m.textContent = 'Falsche PIN.'; shake(f); }
   };
 }
 
@@ -208,9 +216,9 @@ async function terminal(){
     form.onsubmit = async ev => {
       ev.preventDefault();
       const v = form.querySelector('input').value, m = card.querySelector('.msg');
-      m.className = 'msg'; m.textContent = 'Prüfe …';
-      if(await dec(v, s.e)){ mem.codes[s.id] = v; save(); await terminal(); const c = document.getElementById('st'+s.id); if(c) c.scrollIntoView({behavior:'smooth', block:'start'}); }
-      else { m.className = 'msg bad'; m.textContent = 'Das stimmt noch nicht. Prüft eure Spuren noch einmal.'; shake(card); }
+      m.className = 'msg'; m.textContent = 'Prüfe …'; primeSfx();
+      if(await dec(v, s.e)){ sfx(STEP_SFX[s.id] || 'gong'); mem.codes[s.id] = v; save(); await terminal(); const c = document.getElementById('st'+s.id); if(c) c.scrollIntoView({behavior:'smooth', block:'start'}); }
+      else { sfx('falsch'); m.className = 'msg bad'; m.textContent = 'Das stimmt noch nicht. Prüft eure Spuren noch einmal.'; shake(card); }
     };
     const hb = card.querySelector('.hbox');
     card.querySelectorAll('[data-h]').forEach(b => b.onclick = () => {
@@ -247,9 +255,10 @@ async function finale(){
       m.className = 'msg ' + (ok ? '' : 'bad'); m.textContent = ok ? '✓' : (vals[q.id] ? q.wrong : 'Bitte wählt eine Antwort.');
       if(!ok) all = false;
     }
-    if(!all){ shake(document.getElementById('ff')); return; }
+    if(!all){ sfx('falsch'); shake(document.getElementById('ff')); return; }
     const r = await dec(F.q.map(q => vals[q.id]).join('|'), F.all);
     if(!r) return;
+    if(window._finSfx){ sfx('gong'); window._finSfx = 0; }
     mem.fin = vals; save();
     document.getElementById('ff').querySelector('button').disabled = true;
     const res = document.getElementById('res');
@@ -274,7 +283,7 @@ async function finale(){
     };
     res.scrollIntoView({behavior:'smooth'});
   };
-  document.getElementById('ff').onsubmit = ev => { ev.preventDefault(); const v = {}; F.q.forEach(q => v[q.id] = document.getElementById('q_'+q.id).value); run(v); };
+  document.getElementById('ff').onsubmit = ev => { ev.preventDefault(); primeSfx(); window._finSfx = 1; const v = {}; F.q.forEach(q => v[q.id] = document.getElementById('q_'+q.id).value); run(v); };
   if(mem.fin){ F.q.forEach(q => document.getElementById('q_'+q.id).value = mem.fin[q.id]); run(mem.fin); }
 }
 
