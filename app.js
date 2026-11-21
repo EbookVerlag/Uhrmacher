@@ -27,13 +27,25 @@ async function dec(key, e){
 function unobf(s){ const b = b64d(s); for(let i=0;i<b.length;i++) b[i] ^= (i*7+23)%256; return new TextDecoder().decode(b); }
 function esc(s){ return String(s).replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c])); }
 function h(html){ app.innerHTML = html; window.scrollTo(0,0); }
-/* ---------- Geräusche ---------- */
-const SFX = {};
-['schloss','buch','gong','falsch','piep'].forEach(n => { try{ SFX[n] = new Audio('a/s_'+n+'.mp3'); SFX[n].preload = 'auto'; }catch(e){} });
-function primeSfx(){ // iOS: Töne beim Tippen freischalten
-  Object.values(SFX).forEach(a => { try{ a.muted = true; const p = a.play(); if(p) p.then(() => { a.pause(); a.currentTime = 0; a.muted = false; }).catch(() => { a.muted = false; }); }catch(e){} });
+/* ---------- Geräusche (Web Audio, keine Überlagerungen) ---------- */
+let ACtx = null; const BUF = {};
+function primeSfx(){ // beim Tippen freischalten (iOS/Chrome)
+  try{
+    if(!ACtx){ const C = window.AudioContext || window.webkitAudioContext; if(!C) return; ACtx = new C();
+      ['schloss','buch','gong','falsch','piep'].forEach(n => fetch('a/s_'+n+'.mp3').then(r => r.arrayBuffer())
+        .then(ab => new Promise((ok, no) => ACtx.decodeAudioData(ab, ok, no))).then(bf => { BUF[n] = bf; }).catch(()=>{})); }
+    if(ACtx.state === 'suspended') ACtx.resume();
+  }catch(e){}
 }
-function sfx(n){ const a = SFX[n]; if(!a) return; try{ a.muted = false; a.currentTime = 0; a.play().catch(()=>{}); }catch(e){} }
+let lastSrc = null;
+function sfx(n){
+  try{
+    if(!ACtx || !BUF[n]) return;
+    if(lastSrc){ try{ lastSrc.stop(); }catch(e){} }
+    const s = ACtx.createBufferSource(); s.buffer = BUF[n]; s.connect(ACtx.destination); s.start(0); lastSrc = s;
+  }catch(e){}
+}
+document.addEventListener('pointerdown', primeSfx, {passive:true});
 const STEP_SFX = {1:'schloss', 2:'buch', 3:'piep'};
 function shake(el){ el.classList.remove('shake'); void el.offsetWidth; el.classList.add('shake'); }
 
