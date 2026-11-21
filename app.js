@@ -230,8 +230,8 @@ async function terminal(){
   }
   const r = document.getElementById('rst');
   r.onclick = () => {
-    if(!r.dataset.sure){ r.dataset.sure = 1; r.textContent = 'Wirklich alles zurücksetzen?'; document.getElementById('rstm').textContent = 'Alle gelösten Rätsel gehen verloren.'; return; }
-    mem = {codes:{}}; save(); terminal();
+    if(!r.dataset.sure){ r.dataset.sure = 1; r.textContent = 'Wirklich alles zurücksetzen?'; document.getElementById('rstm').textContent = 'Alle gelösten Rätsel gehen verloren (der Zugang bleibt).'; return; }
+    mem = {codes:{}, access: mem.access}; save(); terminal();
   };
 }
 
